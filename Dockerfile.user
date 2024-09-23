@@ -1,0 +1,17 @@
+# Use official Node.js image as a parent image
+FROM node:14
+
+# Set the working directory
+WORKDIR /app
+
+# Copy only the necessary index.html file
+COPY build/user/index.html /app/index.html
+
+# Install http-server globally
+RUN npm install -g http-server
+
+# Expose the port for serving user docs
+EXPOSE 4001
+
+# Define the command to run the app
+CMD ["http-server", ".", "-p", "4001"]

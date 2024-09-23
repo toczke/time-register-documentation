@@ -1,0 +1,722 @@
+openapi: 3.0.0
+info:
+  title: Time Management API
+  description: API documentation for Time Management Application
+  version: 1.0.0
+
+paths:
+  /api/auth/register:
+    post:
+      summary: Register a new user (manual activation)
+      tags:
+        - Authorization
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                firstName:
+                  type: string
+                lastName:
+                  type: string
+                WWID:
+                  type: string
+                  minLength: 8
+                  maxLength: 8
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+                  minLength: 8
+                  pattern: "^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[@$!%*?&])[A-Za-z\\d@$!%*?&]{8,}$"
+                  description: >
+                    Minimum 8 characters. Must include one uppercase letter,
+                    one lowercase letter, one number, and one special character.
+      responses:
+        "201":
+          description: User registered successfully
+        "400":
+          description: Bad Request
+        "409":
+          description: Conflict
+        "500":
+          description: Internal Server Error
+
+  /api/auth/login:
+    post:
+      summary: Login to the application
+      tags:
+        - Authorization
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                emailOrWWID:
+                  type: string
+                password:
+                  type: string
+      responses:
+        "200":
+          description: Login successful, returns JWT token
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  accessToken:
+                    type: string
+                    description: JWT token for authentication
+        "400":
+          description: Bad Request
+        "401":
+          description: Unauthorized
+        "403":
+          description: Forbidden - Account disabled or 2FA required
+        "500":
+          description: Internal Server Error
+
+  /api/auth/change-password:
+    post:
+      summary: Change user password
+      tags:
+        - Authorization
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                oldPassword:
+                  type: string
+                newPassword:
+                  type: string
+                confirmPassword:
+                  type: string
+      responses:
+        "200":
+          description: Password updated successfully
+        "400":
+          description: Bad Request
+        "401":
+          description: Unauthorized
+        "500":
+          description: Internal Server Error
+
+  /api/auth/refresh-token:
+    post:
+      summary: Refresh access token using refresh token
+      tags:
+        - Authorization
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                refreshToken:
+                  type: string
+      responses:
+        "200":
+          description: New access token generated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  accessToken:
+                    type: string
+                    description: New JWT access token
+        "400":
+          description: Bad Request
+        "401":
+          description: Unauthorized
+        "500":
+          description: Internal Server Error
+
+  /api/auth/logout:
+    post:
+      summary: Logout user and invalidate all tokens
+      tags:
+        - Authorization
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Logged out successfully
+        "500":
+          description: Internal Server Error
+
+  /api/auth/enable-2fa:
+    post:
+      summary: Enable Two-Factor Authentication (2FA)
+      tags:
+        - Authorization
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                secret:
+                  type: string
+                  description: Base32-encoded secret for 2FA
+                code:
+                  type: string
+                  description: Two-Factor Authentication code from authenticator app
+      responses:
+        "200":
+          description: Two-Factor Authentication enabled successfully
+        "400":
+          description: Bad Request
+        "401":
+          description: Unauthorized
+        "500":
+          description: Internal Server Error
+
+  /api/auth/validate-2fa:
+    post:
+      summary: Validate Two-Factor Authentication (2FA) code
+      tags:
+        - Authorization
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                code:
+                  type: string
+                  description: Two-Factor Authentication code from authenticator app
+              required:
+                - code
+      responses:
+        "200":
+          description: Successfully validated 2FA code and issued JWT token
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  accessToken:
+                    type: string
+                    description: JWT access token
+        "400":
+          description: Invalid 2FA token
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    description: Error message
+        "404":
+          description: 2FA setup not found for user
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    description: Error message
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    description: Error message
+
+  /api/user/details:
+    get:
+      summary: Get User Details
+      description: Retrieve details of the authenticated user.
+      tags:
+        - User
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Successful response with user details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+
+    put:
+      summary: Update User Details
+      description: Update details for the authenticated user.
+      tags:
+        - User
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserDetails"
+      responses:
+        "200":
+          description: User details updated successfully
+        "404":
+          description: User details not found or no changes applied
+        "500":
+          description: Internal Server Error
+
+  /api/user/time-entries:
+    post:
+      summary: Create a new time entry
+      description: Adds a new time entry for the authenticated user.
+      tags:
+        - User Time Management
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TimeEntry"
+      responses:
+        "201":
+          description: Time entry created successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TimeEntry"
+        "400":
+          description: Invalid input
+        "401":
+          description: Unauthorized
+        "500":
+          description: Internal Server Error
+    put:
+      summary: Modify an existing time entry
+      description: Updates an existing time entry for the authenticated user.
+      tags:
+        - User Time Management
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                id:
+                  type: integer
+                hours:
+                  type: number
+                  format: float
+                type:
+                  type: string
+                  enum:
+                    - regular
+                    - overtime
+                    - vacation
+                    - sick_leave
+                    - holiday
+              required:
+                - id
+                - hours
+                - type
+      responses:
+        "200":
+          description: Time entry updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TimeEntry"
+        "400":
+          description: Invalid input
+        "401":
+          description: Unauthorized
+        "404":
+          description: Time entry not found or unauthorized
+        "500":
+          description: Internal Server Error
+    delete:
+      summary: Delete a time entry
+      description: Removes a time entry for the authenticated user.
+      tags:
+        - User Time Management
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                id:
+                  type: integer
+              required:
+                - id
+      responses:
+        "200":
+          description: Time entry deleted successfully
+        "400":
+          description: Invalid input
+        "401":
+          description: Unauthorized
+        "404":
+          description: Time entry not found or unauthorized
+        "500":
+          description: Internal Server Error
+
+  /api/user/time-entries/report:
+    get:
+      summary: Get time entries report
+      description: Retrieves a report of time entries for the authenticated user based on various filters.
+      tags:
+        - User Time Management
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: startDate
+          schema:
+            type: string
+            format: date
+          required: false
+          description: The start date for the date range filter.
+        - in: query
+          name: endDate
+          schema:
+            type: string
+            format: date
+          required: false
+          description: The end date for the date range filter.
+        - in: query
+          name: year
+          schema:
+            type: integer
+          required: false
+          description: The year for the year and week or year and month filter.
+        - in: query
+          name: week
+          schema:
+            type: integer
+          required: false
+          description: The week number for the year and week filter.
+        - in: query
+          name: month
+          schema:
+            type: integer
+          required: false
+          description: The month number for the year and month filter.
+        - in: query
+          name: detailed
+          schema:
+            type: boolean
+          required: false
+          description: If true, the response will be detailed day-by-day. If false, it will be aggregated.
+      responses:
+        "200":
+          description: Time entries retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    date:
+                      type: string
+                      format: date
+                    totalHours:
+                      type: number
+                      format: float
+                      description: The total hours for the date (if detailed is false).
+                    types:
+                      type: array
+                      items:
+                        type: object
+                        properties:
+                          type:
+                            type: string
+                            enum:
+                              - regular
+                              - overtime
+                              - vacation
+                              - sick_leave
+                              - holiday
+                          hours:
+                            type: number
+                            format: float
+                            description: The hours for this type (if detailed is true).
+        "400":
+          description: Invalid input
+        "401":
+          description: Unauthorized
+        "500":
+          description: Internal Server Error
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    Role:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          readOnly: true
+        roleName:
+          type: string
+          enum:
+            - user
+            - tl
+            - hr
+            - admin
+      required:
+        - roleName
+
+    Team:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          readOnly: true
+        teamName:
+          type: string
+          enum:
+            - lab
+            - val
+            - sas
+            - none
+      required:
+        - teamName
+
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          readOnly: true
+        firstName:
+          type: string
+        lastName:
+          type: string
+        fullName:
+          type: string
+          readOnly: true
+        WWID:
+          type: string
+          maxLength: 8
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+        roleId:
+          type: integer
+          format: int64
+        teamId:
+          type: integer
+          format: int64
+        isActive:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+          readOnly: true
+        lastLogin:
+          type: string
+          format: date-time
+          readOnly: true
+        twoFactorEnabled:
+          type: boolean
+      required:
+        - firstName
+        - lastName
+        - WWID
+        - email
+        - password
+        - roleId
+        - isActive
+
+    UserDetails:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          readOnly: true
+        userId:
+          type: integer
+          format: int64
+        sex:
+          type: string
+          enum:
+            - male
+            - female
+            - other
+        addressStreet:
+          type: string
+        addressPostCode:
+          type: string
+        addressCity:
+          type: string
+        addressCountry:
+          type: string
+        phoneNumber:
+          type: string
+        alternativeEmail:
+          type: string
+          format: email
+        dateOfBirth:
+          type: string
+          format: date
+        nationality:
+          type: string
+      required:
+        - userId
+
+    Token:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          readOnly: true
+        userId:
+          type: integer
+          format: int64
+        token:
+          type: string
+        expiresAt:
+          type: string
+          format: date-time
+      required:
+        - userId
+        - token
+        - expiresAt
+
+    RefreshToken:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          readOnly: true
+        userId:
+          type: integer
+          format: int64
+        token:
+          type: string
+        expiresAt:
+          type: string
+          format: date-time
+      required:
+        - userId
+        - token
+        - expiresAt
+
+    TimeEntry:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          readOnly: true
+        userId:
+          type: integer
+          format: int64
+          readOnly: true # userId is read-only
+        date:
+          type: string
+          format: date
+        hours:
+          type: number
+          format: float
+        type:
+          type: string
+          enum:
+            - regular
+            - overtime
+            - vacation
+            - sick_leave
+            - holiday
+      required:
+        - date
+        - hours
+        - type
+
+    Document:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          readOnly: true
+        userId:
+          type: integer
+          format: int64
+        startDate:
+          type: string
+          format: date
+        endDate:
+          type: string
+          format: date
+        type:
+          type: string
+        minioS3Path:
+          type: string
+      required:
+        - userId
+        - startDate
+        - endDate
+        - type
+        - minioS3Path
+
+    TwoFactorAuth:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          readOnly: true
+        userId:
+          type: integer
+          format: int64
+        secret:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+        - userId
+        - secret
