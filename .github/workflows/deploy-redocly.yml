@@ -22,7 +22,7 @@ jobs:
         run: npm install
 
       - name: Build maintainer docs
-        run: npx redocly build-docs /docs/maintainer-docs.yaml -o build/maintainer
+        run: npx @redocly/cli build-docs docs/maintainer-docs.yaml -o build/maintainer/index.html
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3
