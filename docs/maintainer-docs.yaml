@@ -477,6 +477,322 @@ paths:
         "500":
           description: Internal Server Error
 
+  /api/user/leave-request:
+    post:
+      tags:
+        - User Leave Management
+      security:
+        - bearerAuth: []
+      summary: Request a leave
+      description: Allows a user to request a leave by specifying multiple dates.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                leaveType:
+                  type: string
+                  enum:
+                    - vacation
+                    - urgent
+                    - special
+                    - childcare
+                    - training
+                    - unpaid
+                  example: vacation
+                dates:
+                  type: array
+                  items:
+                    type: string
+                    format: date
+                    example: 2023-08-01
+                  description: |
+                    An array of dates for which the leave is requested. Each date will be treated as a separate leave request.
+                comment:
+                  type: string
+                  example: "Going on a family trip"
+      responses:
+        201:
+          description: Leave request created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Leave request(s) submitted successfully"
+                  leaveRequests:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                          example: "123"
+                        userId:
+                          type: string
+                          example: "1"
+                        leaveType:
+                          type: string
+                          example: "vacation"
+                        date:
+                          type: string
+                          format: date
+                          example: "2023-08-01"
+                        status:
+                          type: string
+                          example: "pending"
+                        comment:
+                          type: string
+                          example: "Going on a family trip"
+        400:
+          description: Bad request due to invalid input
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Invalid leave type or missing required fields"
+        500:
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Internal Server Error"
+    put:
+      summary: Update an existing leave request
+      description: Updates an existing leave request based on the provided leave request ID and other fields. Only pending requests can be modified, and the modifications are restricted to specific leave dates, comments, and leave type.
+      tags:
+        - User Leave Management
+      security:
+        - bearerAuth: []
+      requestBody:
+        description: Data to update the leave request. Only the owner of the request can modify it, and only if the request is pending.
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                leaveRequestId:
+                  type: integer
+                  description: The ID of the leave request to update
+                leaveType:
+                  type: string
+                  description: The type of leave
+                comment:
+                  type: string
+                  description: Comment about the leave request
+                dates:
+                  type: array
+                  items:
+                    type: string
+                    format: date
+                  description: Specific dates for the leave
+              required:
+                - leaveRequestId
+              example:
+                leaveRequestId: 1
+                leaveType: vacation
+                comment: Going on a family trip
+                dates:
+                  - "2024-07-31"
+                  - "2024-08-01"
+      responses:
+        "200":
+          description: Leave request updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Leave request updated successfully
+        "400":
+          description: Bad Request, missing or invalid data
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Validation Error: Missing leaveRequestId"
+        "401":
+          description: Unauthorized, JWT missing or invalid
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Unauthorized access
+        "403":
+          description: Forbidden, only the owner of the leave request can modify it or the request is not in a pending state
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: '"Only pending requests can be modified" or "Not authorized to modify this request"'
+        "404":
+          description: Not Found, leave request not found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Leave request not found
+  /api/user/leave-request/{leaveRequestId}:
+    delete:
+      summary: Delete a leave request
+      description: Deletes a leave request if its status is pending or rejected. The user must be the same as the user who created the leave request.
+      tags:
+        - User Leave Management
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: leaveRequestId
+          in: path
+          required: true
+          description: ID of the leave request to be deleted
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Successfully deleted leave request
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    description: Confirmation message
+        "400":
+          description: Bad request
+        "403":
+          description: Forbidden - Not authorized to delete the leave request
+        "404":
+          description: Not found - Leave request or user not found
+        "500":
+          description: Internal server error
+
+  /api/user/leave-requests:
+    get:
+      tags:
+        - User Leave Management
+      security:
+        - bearerAuth: []
+      summary: Get user leave requests
+      description: Retrieve a list of leave requests made by the authenticated user
+      parameters:
+        - name: status
+          in: query
+          description: Filter by leave request status
+          required: false
+          schema:
+            type: string
+            enum: [pending, accepted, rejected]
+            example: pending
+        - name: startDate
+          in: query
+          description: Filter leave requests by start date (YYYY-MM-DD)
+          required: false
+          schema:
+            type: string
+            format: date
+        - name: endDate
+          in: query
+          description: Filter leave requests by end date (YYYY-MM-DD)
+          required: false
+          schema:
+            type: string
+            format: date
+        - name: leaveType
+          in: query
+          description: Filter by leave type
+          required: false
+          schema:
+            type: string
+            enum:
+              [
+                "vacation",
+                "urgent",
+                "special",
+                "childcare",
+                "training",
+                "unpaid",
+              ]
+      responses:
+        200:
+          description: A list of leave requests
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: string
+                      example: "123"
+                    userId:
+                      type: string
+                      example: "1"
+                    leaveType:
+                      type: string
+                      example: "vacation"
+                    startDate:
+                      type: string
+                      format: date
+                      example: "2023-08-01"
+                    endDate:
+                      type: string
+                      format: date
+                      example: "2023-08-10"
+                    status:
+                      type: string
+                      example: "pending"
+                    comment:
+                      type: string
+                      example: "Going on a family trip"
+        404:
+          description: No leave requests found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "No leave requests found for this user"
+        500:
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Internal Server Error"
+
   /api/tl/add-user:
     post:
       summary: Add a new user
@@ -774,6 +1090,163 @@ paths:
         "500":
           description: Internal server error.
 
+  /api/tl/leave-requests:
+    get:
+      tags:
+        - Team Leader Leave Management
+      security:
+        - bearerAuth: []
+      summary: Retrieve all team leave requests
+      description: |
+        Fetches leave requests for all team members of the team associated with the logged-in team leader. Optionally filters by user ID, status, and date range.
+      parameters:
+        - name: userId
+          in: query
+          description: Filter leave requests by a specific user ID
+          required: false
+          schema:
+            type: integer
+        - name: status
+          in: query
+          description: Filter leave requests by status (pending, accepted, rejected)
+          required: false
+          schema:
+            type: string
+            enum:
+              - pending
+              - accepted
+              - rejected
+        - name: startDate
+          in: query
+          description: "Filter leave requests starting from this date (format: YYYY-MM-DD)"
+          required: false
+          schema:
+            type: string
+            format: date
+        - name: endDate
+          in: query
+          description: "Filter leave requests up to this date (format: YYYY-MM-DD)"
+          required: false
+          schema:
+            type: string
+            format: date
+      responses:
+        "200":
+          description: Successfully retrieved leave requests
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: integer
+                      example: 1
+                    userId:
+                      type: integer
+                      example: 1
+                    leaveType:
+                      type: string
+                      example: vacation
+                    status:
+                      type: string
+                      example: pending
+                    comment:
+                      type: string
+                      example: Going on a family trip
+                    createdAt:
+                      type: string
+                      format: date-time
+                      example: "2024-07-30T12:34:56Z"
+                    updatedAt:
+                      type: string
+                      format: date-time
+                      example: "2024-07-30T12:34:56Z"
+        "404":
+          description: No leave requests found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: No leave requests found
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Internal Server Error
+
+  /api/tl/leave-request:
+    post:
+      tags:
+        - Team Leader Leave Management
+      security:
+        - bearerAuth: []
+      summary: Resolve a leave request
+      description: Accept or reject a leave request. If accepted, the leave request dates will be added as time entries for the user.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                leaveRequestId:
+                  type: integer
+                  description: The ID of the leave request to resolve
+                status:
+                  type: string
+                  enum: [accepted, rejected]
+                  description: The new status for the leave request
+              required:
+                - leaveRequestId
+                - status
+      responses:
+        "200":
+          description: Leave request status updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+        "404":
+          description: Leave request not found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+
   /api/hr/users:
     get:
       summary: Get a list of active users
@@ -976,24 +1449,99 @@ paths:
         500:
           description: Internal server error
 
-  /api/admin/user/delete/{userId}:
-    delete:
-      summary: Delete a user
+  /api/hr/leave-requests:
+    get:
+      summary: List all leave requests
+      description: Retrieve a list of all leave requests, optionally filtered by user ID and status.
       tags:
-        - Admin
+        - HR Leave Management
       security:
         - bearerAuth: []
       parameters:
-        - name: userId
-          in: path
-          required: true
+        - in: query
+          name: userId
           schema:
             type: integer
+          description: Filter leave requests by user ID
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum:
+              - accepted
+              - rejected
+              - pending
+          description: Filter leave requests by status
       responses:
         "200":
-          description: User deleted successfully
-        "404":
-          description: User not found
+          description: List of leave requests
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: integer
+                      example: 7
+                    userId:
+                      type: integer
+                      example: 1
+                    leaveType:
+                      type: string
+                      example: vacation
+                    status:
+                      type: string
+                      example: accepted
+                    dates:
+                      type: array
+                      items:
+                        type: string
+                        format: date
+                        example: 2024-07-30
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: Internal server error
+
+  /api/hr/leave-request:
+    post:
+      summary: Resolve a leave request
+      description: Allows a team leader to accept or reject a leave request.
+      tags:
+        - HR Leave Management
+      security:
+        - bearerAuth: []
+      requestBody:
+        description: Leave request data for resolution
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                leaveRequestId:
+                  type: integer
+                  example: 7
+                status:
+                  type: string
+                  enum:
+                    - accepted
+                    - rejected
+                  example: accepted
+              required:
+                - leaveRequestId
+                - status
+      responses:
+        "200":
+          description: Leave request resolved successfully
           content:
             application/json:
               schema:
@@ -1001,12 +1549,54 @@ paths:
                 properties:
                   message:
                     type: string
-                    example: User not found
+                    example: Leave request resolved successfully
+        "400":
+          description: Bad request due to validation errors
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: leaveRequestId and status are required
+        "403":
+          description: Forbidden due to authorization error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: You are not authorized to accept or reject leaves from other teams
+        "404":
+          description: Leave request or user not found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: Leave request not found
         "500":
-          description: Internal Server Error
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: Internal server error
+                  details:
+                    type: string
+                    example: Error message
 
   /api/admin/user/change-role:
     put:
+      deprecated: true
       summary: Change user role
       tags:
         - Admin
@@ -1044,6 +1634,7 @@ paths:
 
   /api/admin/user/toggle-active:
     put:
+      deprecated: true
       summary: Enable or disable a user
       tags:
         - Admin
@@ -1079,7 +1670,7 @@ paths:
         "500":
           description: Internal Server Error
 
-  /api/admin/add-user:
+  /api/admin/user:
     post:
       summary: Create a new user
       description: Creates a new user with the specified details and returns the login information and generated password.
@@ -1145,6 +1736,138 @@ paths:
           description: Invalid input
         "409":
           description: Conflict (e.g., email or WWID already exists)
+        "500":
+          description: Internal Server Error
+
+  /api/admin/user/{userId}:
+    put:
+      summary: Update User Details
+      description: Allows an admin to update the details of a specific user.
+      tags:
+        - Admin
+      security:
+        - bearerAuth: []
+      operationId: updateUserDetailsAdmin
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+            example: 2
+          description: The ID of the user to update.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                roleIdentifier:
+                  type: string
+                  description: The role to assign to the user.
+                  enum: [user, tl, hr, admin]
+                  example: user
+                activeStatus:
+                  type: boolean
+                  description: Whether the user is active (true) or inactive (false).
+                  example: true
+                sex:
+                  type: string
+                  enum: [male, female, other]
+                  example: female
+                addressStreet:
+                  type: string
+                  example: 5678 Maple Avenue
+                addressPostCode:
+                  type: string
+                  example: 12345
+                addressCity:
+                  type: string
+                  example: Springfield
+                addressCountry:
+                  type: string
+                  example: USA
+                phoneNumber:
+                  type: string
+                  example: +1987654321
+                alternativeEmail:
+                  type: string
+                  format: email
+                  example: jane.smith@example.com
+                dateOfBirth:
+                  type: string
+                  format: date
+                  example: 1990-05-15
+                nationality:
+                  type: string
+                  example: Canadian
+      responses:
+        "200":
+          description: User details updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: User details updated successfully
+        "400":
+          description: Bad request due to missing or invalid parameters
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: 'Invalid role identifier. Use "user", "tl", "hr", or "admin".'
+        "404":
+          description: User details not found or no changes applied
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: User details not found or no changes applied
+        "500":
+          description: Internal Server Error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Internal Server Error
+    delete:
+      summary: Delete a user
+      tags:
+        - Admin
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: User deleted successfully
+        "404":
+          description: User not found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: User not found
         "500":
           description: Internal Server Error
 
@@ -1218,6 +1941,7 @@ components:
       type: http
       scheme: bearer
       bearerFormat: JWT
+
   schemas:
     Role:
       type: object
@@ -1390,7 +2114,7 @@ components:
         userId:
           type: integer
           format: int64
-          readOnly: true # userId is read-only
+          readOnly: true
         date:
           type: string
           format: date
