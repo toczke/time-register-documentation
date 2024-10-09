@@ -5,9 +5,9 @@ info:
   version: 1.0.0
 servers:
   - url: http://localhost:3000
-    description: DEV server
-  - url: https://api.time-register.com
-    description: Production server
+    description: Local development server
+  - url: https://api.tczke.ovh
+    description: Preproduction development server
 
 paths:
   /api/auth/register:
